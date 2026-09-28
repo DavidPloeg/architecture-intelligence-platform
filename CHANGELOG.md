@@ -11,18 +11,42 @@ aren't yet guaranteed stable pre-1.0.
 
 ### Added
 
-- Static type checking: `uv run pyright` (standard mode) now runs in CI's `quality` job over
-  `app/api`, `app/canonical`, `app/architecture_intelligence`, `app/graph`, `app/ingestion`,
-  `app/sources` and `app/telemetry`, with the other packages to follow one at a time. Existing
-  type errors in those packages were fixed without behavior changes, except the one listed under
-  Changed.
+- Static type checking: `uv run pyright` (standard mode) now runs in CI's `quality` job over all
+  of `app/`. Existing type errors were fixed without behavior changes, except the
+  `ServiceIdentityResolution` and OpenAI provider changes listed under Changed. Only rule-scoped
+  `# pyright: ignore[<rule>]` comments suppress errors; `# type: ignore` is no longer honored.
+- Lint: ruff now also enforces flake8-bugbear, naive-datetime, blind-except, import-order,
+  pyupgrade, bandit (for `app/`) and ruff's own rules.
+- Contributor tooling: a checked-in `.claude/settings.json` adds best-effort Claude Code deny rules
+  for the common forms of merging pull requests, force-pushing and pushing directly to `main` (not
+  a security boundary; the rule itself stays procedural), and allows the exact check commands
+  without a prompt.
+- REST API snapshot: `tests/snapshots/openapi.json`, regenerated with
+  `uv run python -m app.api.openapi_export`; a unit test fails whenever the REST API drifts from
+  it, so every REST change is an explicit, reviewed diff. It's a change detector, not a published
+  contract, and doesn't make the REST API stable (`info.version` reads `snapshot`).
 
 ### Changed
 
+- Container images are pinned by digest outside `docs/`: Neo4j 5.26.31 in the dev and demo
+  stacks, integration tests and harnesses, and Python 3.14.7 and uv 0.12.19 in the root
+  `Dockerfile` (the exact base images v0.5.0 was built from). `examples/runtime-demo/Dockerfile`
+  stays unpinned because the frozen v0.5.0 release golden-path profile checksums it. Dependabot now
+  also updates the compose files (except Neo4j major versions), and a unit test rejects
+  unpinned images.
 - `ServiceIdentityResolution` now rejects, at construction, a `RESOLVED` outcome without a
   `service_id` (and a rejected outcome with one). Every built-in resolver already complied; a custom
   `ServiceIdentityResolver` returning an inconsistent resolution now fails loudly instead of
   producing canonical ids such as `operation:None:...`.
+- The OpenAI provider now raises `LLMProviderError` when the model returns no parsed Cypher or no
+  answer content (for example on a refusal), instead of an `AttributeError` or a `None` answer that
+  failed when the query response was built. The HTTP outcome is unchanged (an error response on
+  `/api/query` and the UI query page).
+
+### Fixed
+
+- The runtime demo's Neo4j healthcheck (`docker-compose.demo.yml`) now has a 60s start period, so a
+  slow cold start doesn't fail `mcp-demo.sh` with "container is unhealthy".
 
 ## [0.5.1] - 2026-09-27
 
